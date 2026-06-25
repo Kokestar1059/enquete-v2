@@ -140,7 +140,7 @@
 - **GitHubリポジトリ**：https://github.com/Kokestar1059/enquete-v2 （Public。前課題とは別リポジトリ）
 - **push 方針**：commit はこまめに、**push は全issue完了後に最後の1回だけ**。途中は push しない。push 前に秘密情報混入チェック必須。
 - **1 issue ずつ進める**。セッションは issue 達成ごとに切る（コンテキストを汚さない）。
-- **現状（2026-06-25）**：git init・初回コミット・GitHub作成・初回pushまで完了。issue #1〜#5 を作成し、#1（DB接続＋responsesテーブル）に着手するところ。
+- **現状（2026-06-25）**：git init・初回コミット・GitHub作成・初回pushまで完了。issue #1〜#5 作成済み。**#1（DB接続db.php＋responsesテーブル）は完了・close済み**（main にローカルマージ済み、接続テストOK）。**次は #2（write.php→insert.php リネーム＋INSERT化）**。
 - README.md は enquete（v1）の内容のまま。**最後の push 直前に v2向けへ書き換える**（issue化はしない）。
 
 ### 再開手順（新セッションはこの順で状況把握）
