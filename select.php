@@ -1,34 +1,32 @@
 <?php
 
 /**
- * read.php
- * data/data.csv を読み取り、回答一覧を表で表示する。
+ * select.php
+ * responses テーブルを SELECT して、回答一覧を表で表示する。
  * さらに、カテゴリ別の集計（件数・割合）を棒グラフで視覚化し、
  * 「AIで分析する」ボタンで analyze.php を呼んで分析文を表示する。
  *
- * CSVの列順（write.php と必ず揃える）:
- *   回答日時, 頻度, 目的, 不満内容, 分類カテゴリ
+ * 旧 read.php（CSV読取）からの変更点:
+ *   - fopen/fgets/explode（CSVを1行ずつ読む）→ PDO の SELECT に置換
+ *   - 列数チェック（壊れた行スキップ）は不要 … DBは列が分かれているので列ずれしない
+ *   - カテゴリ集計は SELECT で取った全行を PHP 側で数える（旧ロジックを流用）
  *
  * 学習メモ:
- *   fopen(..., "r")   … 読み取りモードで開く
- *   feof($f)          … ファイルの終わり(End Of File)に来たら true
- *   fgets($f)         … 1行ずつ取り出す（≒ select で1件ずつ読む感じ）
- *   explode(",", ...) … カンマ区切りの文字列を配列に分解する
+ *   $pdo->query(SQL)  … 値を埋め込まない固定SQLを実行（≒ supabase の select）
+ *   $stmt->fetchAll() … 全行を配列で受け取る（1行 = ["category"=>..., ...] の連想配列）
+ *   ORDER BY ... DESC … 新しい回答が上に来るよう created_at の降順で並べる
  *   連想配列で件数を数える … $counts[$cat]++ がカテゴリ別集計の定番
  *   h(...)            … 画面出力前にエスケープ（XSS対策）
  */
 
 require_once "functions.php";
+require_once "db.php";
 
-// 列見出し（表示用）。CSVにはヘッダ行を保存していないので、ここで用意する。
+// 表の列見出し（表示用）。DBの列順に合わせて並べる。
 $headers = ["回答日時", "頻度", "目的", "不満内容", "分類カテゴリ"];
-$columns = count($headers); // = 5
 
 // 集計対象のカテゴリ（この順で棒グラフに並べる）。これ以外は「その他」に寄せる。
 $CATEGORIES = ["インフラ", "自然環境", "安全", "飲食・施設", "その他"];
-
-// 読み取った行をためる配列
-$rows = [];
 
 // カテゴリ別の件数を0で初期化（連想配列）
 $counts = [];
@@ -36,42 +34,23 @@ foreach ($CATEGORIES as $cat) {
     $counts[$cat] = 0;
 }
 
-$f = fopen("data/data.csv", "r");
-if ($f !== false) {
-    while (!feof($f)) {
-        $line = fgets($f);
+// responses を新しい順に全件 SELECT する。
+//   値を埋め込まない固定SQLなので query() でOK（プリペアドが必要なのは外部入力を渡すとき）。
+$pdo  = db();
+$sql  = "SELECT created_at, frequency, purpose, complaint, category
+         FROM responses
+         ORDER BY created_at DESC";
+$rows = $pdo->query($sql)->fetchAll();
 
-        // fgets はファイル末尾で false を返すことがあるので、文字列のときだけ処理
-        if ($line === false) {
-            break;
-        }
-
-        // 前後の空白・改行を除去。空行はスキップ（空ファイル・末尾の空行対策）
-        $line = trim($line);
-        if ($line === "") {
-            continue;
-        }
-
-        // カンマで分割
-        $cells = explode(",", $line);
-
-        // 列数が想定（5列）と違う壊れた行はスキップする
-        if (count($cells) !== $columns) {
-            continue;
-        }
-
-        $rows[] = $cells;
-
-        // 5列目（添字4）が分類カテゴリ。5カテゴリのどれかなら加算、
-        // それ以外（古い「未分類」など）は「その他」に寄せて数える。
-        $category = $cells[4];
-        if (isset($counts[$category])) {
-            $counts[$category]++;
-        } else {
-            $counts["その他"]++;
-        }
+// 取得した全行を回して、カテゴリ別に件数を数える。
+//   5カテゴリのどれかなら加算、それ以外（古い「未分類」など）は「その他」に寄せる。
+foreach ($rows as $row) {
+    $category = $row["category"];
+    if (isset($counts[$category])) {
+        $counts[$category]++;
+    } else {
+        $counts["その他"]++;
     }
-    fclose($f);
 }
 
 // 集計の合計と最大件数（棒の長さの基準に使う）
@@ -83,7 +62,7 @@ $maxCount = ($total > 0) ? max($counts) : 0;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>回答一覧（read.php）</title>
+    <title>回答一覧（select.php）</title>
     <style>
         body { font-family: sans-serif; max-width: 720px; margin: 24px auto; padding: 0 16px; line-height: 1.6; }
         h1 { font-size: 1.4rem; }
