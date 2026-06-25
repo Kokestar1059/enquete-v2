@@ -62,7 +62,7 @@
         </form>
     </div>
 
-    <p><a href="read.php">回答一覧を見る（read.php）</a></p>
+    <p><a href="select.php">回答一覧を見る（select.php）</a></p>
 
     <script>
         // 固定の3問。keyは chat.php / insert.php が受け取る name と揃える。
