@@ -104,12 +104,7 @@
 - **commit はこまめに**行う（節目ごと）。**push は最後にまとめて1回**（途中は push しない。秘密情報混入チェックを毎回行う）。
 - **issue は片付くたびに close** する。
 - **セッションは issue ごとにクリア**してコンテキストを汚さない（1セッション＝1 issue が目安）。
-- v2のissue全体像：
-  - **#1** DB接続(db.php)＋responsesテーブル作成
-  - **#2** write.php → insert.php リネーム＋INSERT化
-  - **#3** read.php → select.php リネーム＋SELECT化
-  - **#4** 分析結果のDB保存＆呼び出し（analysisテーブル）
-  - **#5** 「再分析」ボタンで手動再分析→analysis更新
+- **issue 全体像・各issueの内容・進捗は `gh issue list` / `gh issue view` で確認**する（ここには列挙しない＝古くならないように）。
 - README.md（v1のまま）の v2向け更新は**issue化せず、最後の push 直前にまとめて書き換える**。
 
 ---
@@ -136,15 +131,17 @@
 4. **シンプル優先**。仕様を超える機能を勝手に足さない。
 5. 不明点・選択（スキーマ/ドライバ等）は、勝手に決めず**質問する**。
 
-## 10. 進行状況・セッション運用 ★再開時にまずここを読む
+## 10. セッション運用 ★再開時にまずここを読む
+> このファイルには**流動的な進捗を書かない**（憲法＝変わらない方針だけ）。
+> 現在位置は **git log / gh issue / git branch から把握**する。
+
 - **GitHubリポジトリ**：https://github.com/Kokestar1059/enquete-v2 （Public。前課題とは別リポジトリ）
 - **push 方針**：commit はこまめに、**push は全issue完了後に最後の1回だけ**。途中は push しない。push 前に秘密情報混入チェック必須。
 - **1 issue ずつ進める**。セッションは issue 達成ごとに切る（コンテキストを汚さない）。
-- **現状（2026-06-25）**：git init・初回コミット・GitHub作成・初回pushまで完了。issue #1〜#5 作成済み。**#1（DB接続db.php＋responsesテーブル）は完了・close済み**（main にローカルマージ済み、接続テストOK）。**次は #2（write.php→insert.php リネーム＋INSERT化）**。
 - README.md は enquete（v1）の内容のまま。**最後の push 直前に v2向けへ書き換える**（issue化はしない）。
 
 ### 再開手順（新セッションはこの順で状況把握）
-1. この CLAUDE.md を読む（特に「0. 位置づけ」と「10. 進行状況」）
+1. この CLAUDE.md を読む（特に「0. 位置づけ」）
 2. `gh issue list` で open/closed を確認 → 次のissueを決める
 3. `git log --oneline` と `git branch` で進捗・作業中ブランチを確認
 4. DB周りは config.php の接続情報と phpMyAdmin の状態も確認
