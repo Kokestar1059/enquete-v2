@@ -46,8 +46,8 @@
    📄 index.php        ← 会話風UI（流用）
    📄 chat.php         ← 分類の中継（流用）
    📄 analyze.php      ← 全体分析の中継（DB保存に合わせて改修予定）
-   📄 write.php        ← 保存：CSV追記 → DBへINSERTに変更
-   📄 read.php         ← 一覧＋棒グラフ＋分析表示：CSV読取 → DB SELECTに変更
+   📄 insert.php       ← 保存：CSV追記 → DBへINSERT（旧 write.php をリネーム）
+   📄 select.php       ← 一覧＋棒グラフ＋分析表示：CSV読取 → DB SELECT（旧 read.php をリネーム）
    📄 db.php           ← ★新規予定：DB接続（PDO）を共通化
    📄 functions.php    ← h()など（流用）
    📄 config.php       ← APIキー＋★DB接続情報。Git管理外
@@ -58,9 +58,13 @@
 ### DB設計の“たたき台”（実装前に一緒に確定する）
 - `responses`：id / created_at / frequency / purpose / complaint / category
 - `analysis`：id / created_at / content（最新の分析文。履歴を持つか1行上書きかは相談）
-- 分析の更新タイミング：write.php で1件INSERTした直後に再分析→analysisを更新、を想定（ボタン押下の毎回API課金をなくす狙い）
+- **分析の更新タイミング（v2方針・確定）**：自動再分析ではなく、**画面の「再分析」ボタンを手動で押したとき**だけ再分析→analysisを更新する。通常表示はDBの保存済み分析を呼ぶだけ（毎回API課金しない狙い）。
 
 > ※スキーマ・PDO/mysqliの選択・分析の「最新のみ/履歴」などは**勝手に決めず、実装前に提案して合意**する。
+
+### ファイル名（v2でDBに合わせてリネーム）
+- `write.php` → **`insert.php`**（INSERT する役割に名前を合わせる）。リネーム時に `index.php` のフォーム action も更新する。
+- `read.php` → **`select.php`**（SELECT する役割に名前を合わせる）。各リンクも更新する。
 
 ---
 
@@ -91,11 +95,22 @@
 
 ---
 
-## 6. 開発の進め方（issue駆動）
-- 機能ごとに **GitHub issue** を作る：**目的 / やること / 完了条件 / 参考・メモ**。
-- 機能ごとに **feature ブランチ**（`feature/NN-名前`）→ 完了で **PR→main マージ**。
+## 6. 開発の進め方（issue駆動）★今回の運用フロー
+- まず**完成までの全体像をissue一式**として立ててから着手する（思いつきで1個ずつ作らない）。
+- 各 issue は **目的 / やること / 完了条件 / 参考・メモ** の4項目で書く。
+  - **積み残し・申し送りは次のissueの「参考・メモ」に残す**（情報を落とさない）。
 - 1 issue = 1つの小さな機能。小さく刻む。
-- v2の最初の刻み（案）：①DB接続(db.php)＋テーブル作成 → ②write.phpをINSERT化 → ③read.phpをSELECT化 → ④分析結果のDB保存＆呼び出し → ⑤回答追加時の再分析。
+- **ブランチ**：issueごとに **feature ブランチ**（`feature/NN-名前`）を切る → 完了・動作確認できたら **main にマージ**。
+- **commit はこまめに**行う（節目ごと）。**push は最後にまとめて1回**（途中は push しない。秘密情報混入チェックを毎回行う）。
+- **issue は片付くたびに close** する。
+- **セッションは issue ごとにクリア**してコンテキストを汚さない（1セッション＝1 issue が目安）。
+- v2のissue全体像：
+  - **#1** DB接続(db.php)＋responsesテーブル作成
+  - **#2** write.php → insert.php リネーム＋INSERT化
+  - **#3** read.php → select.php リネーム＋SELECT化
+  - **#4** 分析結果のDB保存＆呼び出し（analysisテーブル）
+  - **#5** 「再分析」ボタンで手動再分析→analysis更新
+- README.md（v1のまま）の v2向け更新は**issue化せず、最後の push 直前にまとめて書き換える**。
 
 ---
 
@@ -122,11 +137,11 @@
 5. 不明点・選択（スキーマ/ドライバ等）は、勝手に決めず**質問する**。
 
 ## 10. 進行状況・セッション運用 ★再開時にまずここを読む
-- **GitHubリポジトリ**：enquete-v2 用に**新規作成予定**（前課題 kugenuma-enquete とは別）。URLは作成後にここへ記入。
-- **コードの push 方針**：前回同様、要所でまとめて push（むやみに途中pushしない）。秘密情報混入チェックを必ず行う。
-- **1 issue ずつ進める**。セッションは issue 達成ごとに切る。
-- **まだ着手前の状態**：enquete のコードをコピーしただけ。DB化はこれから（issue未作成）。
-- README.md は enquete（v1）の内容のまま。v2向けの更新が必要（タスク化する）。
+- **GitHubリポジトリ**：https://github.com/Kokestar1059/enquete-v2 （Public。前課題とは別リポジトリ）
+- **push 方針**：commit はこまめに、**push は全issue完了後に最後の1回だけ**。途中は push しない。push 前に秘密情報混入チェック必須。
+- **1 issue ずつ進める**。セッションは issue 達成ごとに切る（コンテキストを汚さない）。
+- **現状（2026-06-25）**：git init・初回コミット・GitHub作成・初回pushまで完了。issue #1〜#5 を作成し、#1（DB接続＋responsesテーブル）に着手するところ。
+- README.md は enquete（v1）の内容のまま。**最後の push 直前に v2向けへ書き換える**（issue化はしない）。
 
 ### 再開手順（新セッションはこの順で状況把握）
 1. この CLAUDE.md を読む（特に「0. 位置づけ」と「10. 進行状況」）
