@@ -1,0 +1,31 @@
+<?php
+
+/**
+ * 設定の「見本」ファイル。
+ * これをコピーして config.php を作り、実際の値を入れる。
+ * config.php は .gitignore で Git 管理外（APIキーを公開しないため）。
+ *
+ * 【取得先】Azure AI Foundry ポータル（https://ai.azure.com）
+ *   1. プロジェクトを作成（なければ）
+ *   2. 「モデル + エンドポイント」→ モデルをデプロイ（例: gpt-4o-mini など軽量モデルで十分）
+ *   3. デプロイしたモデルの画面に出る「エンドポイント / キー / デプロイ名」を下に転記する
+ *
+ * 【呼び出し方式】新しい v1 API を使う（api-version 不要・本文の "model" にデプロイ名を入れる）
+ *   URL 例: https://〇〇.openai.azure.com/openai/v1/chat/completions
+ */
+
+// リソースのベースURL（ホスト部分まで。末尾の /openai/... は付けない）
+//   例: https://my-foundry.openai.azure.com
+//   または https://my-foundry.services.ai.azure.com
+define('AZURE_OPENAI_ENDPOINT',   'https://YOUR-RESOURCE.openai.azure.com');
+
+// Foundry ポータルに表示される API キー（キー1 など）
+define('AZURE_OPENAI_API_KEY',    'ここにAPIキー');
+
+// モデルのデプロイ名（例: gpt-4o-mini）。v1 API では本文の "model" に使う
+define('AZURE_OPENAI_DEPLOYMENT', 'デプロイ名');
+
+// ※ 新 v1 API では api-version は不要なので、この見本では定数を置いていません。
+//    もし旧クラシック方式（.../openai/deployments/<名>/chat/completions?api-version=...）に
+//    戻したくなった場合のみ、下を有効にして使ってください。
+// define('AZURE_OPENAI_API_VERSION', '2024-10-21');
