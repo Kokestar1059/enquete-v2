@@ -56,6 +56,13 @@ foreach ($rows as $row) {
 // 集計の合計と最大件数（棒の長さの基準に使う）
 $total    = count($rows);
 $maxCount = ($total > 0) ? max($counts) : 0;
+
+// 保存済みの分析（最新1行）を読む。
+//   履歴方式なので、最新を created_at の降順で1件だけ取る（API は呼ばない＝課金しない）。
+//   まだ1件も無ければ $latestAnalysis は false になる。
+$latestAnalysis = $pdo
+    ->query("SELECT content, created_at FROM analysis ORDER BY created_at DESC LIMIT 1")
+    ->fetch();
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -107,11 +114,18 @@ $maxCount = ($total > 0) ? max($counts) : 0;
             </div>
         <?php endforeach; ?>
 
-        <!-- ▼ AIによる分析（ボタンを押したときだけ実行） -->
+        <!-- ▼ AIによる分析（DBに保存済みの最新分析を表示。API は呼ばない） -->
         <h2>AIによる分析</h2>
-        <p class="muted">回答全体の傾向をAIがまとめます（押したときだけ実行します）。</p>
+        <p class="muted">DBに保存された最新の分析を表示します。</p>
         <button type="button" id="analyzeBtn">AIで分析する</button>
-        <div id="analysis"></div>
+
+        <?php if ($latestAnalysis): ?>
+            <p class="muted">最終分析日時: <?php echo h($latestAnalysis["created_at"]); ?></p>
+            <div id="analysis" style="display: block;"><?php echo h($latestAnalysis["content"]); ?></div>
+        <?php else: ?>
+            <p class="muted" id="noAnalysis">まだ分析がありません。「AIで分析する」を押すと分析を作成します。</p>
+            <div id="analysis"></div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- ▼ 回答一覧の表 -->
@@ -151,6 +165,13 @@ $maxCount = ($total > 0) ? max($counts) : 0;
                 btn.disabled = true;
                 const original = btn.textContent;
                 btn.textContent = "分析中…";
+
+                // 「まだ分析がありません」の案内が出ていれば消す（分析を表示するので不要になる）
+                const noAnalysis = document.getElementById("noAnalysis");
+                if (noAnalysis) {
+                    noAnalysis.remove();
+                }
+
                 analysis.style.display = "block";
                 analysis.textContent = "AIが分析しています。しばらくお待ちください…";
 
