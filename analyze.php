@@ -4,17 +4,20 @@
  * analyze.php  ── 回答全体を AI に分析させる「中継サーバー」
  *
  * 役割:
- *   read.php の「AIで分析する」ボタンから fetch で呼ばれる。
- *   サーバー側で data/data.csv を読み、カテゴリ集計＋不満内容を
- *   Azure OpenAI(v1 API) に渡して、傾向・要約・改善提案の文章を生成して返す。
+ *   select.php の「再分析」ボタンから fetch(POST) で呼ばれる。
+ *   サーバー側で responses テーブルを SELECT し、カテゴリ集計＋不満内容を
+ *   Azure OpenAI(v1 API) に渡して、傾向・要約・改善提案の文章を生成する。
+ *   生成した分析文は analysis テーブルに1行 INSERT して保存し、JSONでも返す。
  *
  * ポイント:
  *   - APIキーはサーバー側のここだけで使う（ブラウザに出さない）。
  *   - ボタンを押したときだけ呼ばれる設計（毎回の自動実行はコスト/待ちが出るため）。
- *   - CSV読み取りは read.php と同じ型（fopen/fgets/explode＋列数チェック）。
+ *   - データ取得は CSV ではなく responses テーブルから（#2/#3 でDB化済み）。
+ *   - 分析方式は「履歴を持つ」… 毎回 INSERT で追加する（上書きしない）。
  */
 
 require_once "config.php";
+require_once "db.php";
 
 header("Content-Type: application/json; charset=utf-8");
 
@@ -30,37 +33,24 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     respond_error("POSTで呼んでください。", 405);
 }
 
-// 1) CSV を読み、カテゴリ件数と不満内容を集める（read.php と同じ要領）
-$columns    = 5; // 回答日時,頻度,目的,不満内容,分類カテゴリ
+// 1) responses テーブルを SELECT し、カテゴリ件数と不満内容を集める
+//    値を埋め込まない固定SQLなので query() でOK（プリペアドは外部入力を渡すときに使う）。
 $counts     = []; // カテゴリ => 件数
 $complaints = []; // 不満内容の一覧
 $total      = 0;
 
-$f = fopen("data/data.csv", "r");
-if ($f !== false) {
-    while (!feof($f)) {
-        $line = fgets($f);
-        if ($line === false) {
-            break;
-        }
-        $line = trim($line);
-        if ($line === "") {
-            continue;
-        }
-        $cells = explode(",", $line);
-        if (count($cells) !== $columns) {
-            continue; // 壊れた行はスキップ
-        }
-        $complaint = $cells[3];
-        $category  = $cells[4];
+$pdo  = db();
+$rows = $pdo->query("SELECT complaint, category FROM responses")->fetchAll();
 
-        $counts[$category] = ($counts[$category] ?? 0) + 1;
-        if ($complaint !== "") {
-            $complaints[] = $complaint;
-        }
-        $total++;
+foreach ($rows as $row) {
+    $category  = $row["category"];
+    $complaint = $row["complaint"] ?? "";
+
+    $counts[$category] = ($counts[$category] ?? 0) + 1;
+    if ($complaint !== "") {
+        $complaints[] = $complaint;
     }
-    fclose($f);
+    $total++;
 }
 
 if ($total === 0) {
@@ -139,5 +129,10 @@ $analysis = trim($data["choices"][0]["message"]["content"] ?? "");
 if ($analysis === "") {
     respond_error("分析結果を取得できませんでした。", 502);
 }
+
+// 6) 分析文を analysis テーブルに保存（履歴方式: 毎回1行 INSERT）
+//    値は必ずプリペアドで渡す（SQLインジェクション対策）。
+$stmt = $pdo->prepare("INSERT INTO analysis (content) VALUES (?)");
+$stmt->execute([$analysis]);
 
 echo json_encode(["analysis" => $analysis], JSON_UNESCAPED_UNICODE);

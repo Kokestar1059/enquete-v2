@@ -18,3 +18,16 @@ CREATE TABLE responses (
   category   VARCHAR(50)  NOT NULL DEFAULT '未分類',       -- AI分類（5カテゴリ or 未分類）
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =====================================================================
+-- analysis : AIによる全体分析の文章を保存するテーブル
+--   方式は「履歴を持つ」… 再分析するたびに1行ずつ INSERT で追加する。
+--   表示は最新1行だけ（ORDER BY created_at DESC LIMIT 1）を読む。
+--   過去の分析も残るので、上書きより安全で、INSERTだけなので実装も素直。
+-- =====================================================================
+CREATE TABLE analysis (
+  id         INT      NOT NULL AUTO_INCREMENT,            -- 連番ID（主キー）
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 分析日時（省略時は現在時刻）
+  content    TEXT     NOT NULL,                           -- 分析文（AIが生成した本文）
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
