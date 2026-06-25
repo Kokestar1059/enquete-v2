@@ -29,3 +29,16 @@ define('AZURE_OPENAI_DEPLOYMENT', 'デプロイ名');
 //    もし旧クラシック方式（.../openai/deployments/<名>/chat/completions?api-version=...）に
 //    戻したくなった場合のみ、下を有効にして使ってください。
 // define('AZURE_OPENAI_API_VERSION', '2024-10-21');
+
+
+// =====================================================================
+// データベース接続情報
+//   - ローカル(XAMPP/MariaDB) と 本番(さくらMySQL) で値が異なる。
+//   - host はローカルでは「localhost」推奨（XAMPPはソケット接続のため）。
+//   - 本番(さくら)は管理画面で作成したDBのホスト/DB名/ユーザー/パスワードを入れる。
+// =====================================================================
+define('DB_HOST',    'localhost');     // ローカル例: localhost / 本番: さくらのDBサーバー名
+define('DB_NAME',    'enquete_v2');    // データベース名
+define('DB_USER',    'root');          // ローカル例: root / 本番: 作成したDBユーザー名
+define('DB_PASS',    '');              // ローカル(XAMPP)は空 / 本番: 設定したパスワード
+define('DB_CHARSET', 'utf8mb4');       // 文字コード（日本語・絵文字対応）。変更不要
