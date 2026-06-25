@@ -8,8 +8,8 @@
  *   JSが3問を1問ずつ提示して回答を集める
  *     → fetch で chat.php に JSON 送信（AIが5カテゴリに分類）
  *     → 分類結果を表示
- *     → 「保存する」で write.php に通常フォームPOST（categoryも一緒に）
- *     → read.php で一覧表示
+ *     → 「保存する」で insert.php に通常フォームPOST（categoryも一緒に）
+ *     → select.php で一覧表示
  *
  * メモ:
  *   - APIキーはサーバー側 chat.php だけで使う。ここ（ブラウザのJS）には出さない。
@@ -52,8 +52,8 @@
     <!-- 分類結果＆保存エリア（3問終了後に表示） -->
     <div id="result">
         <p>あなたの回答は <strong id="categoryText"></strong> に分類されました。</p>
-        <!-- 保存は write.php への通常フォームPOST。値はJSが下のhiddenに入れる -->
-        <form method="post" action="write.php">
+        <!-- 保存は insert.php への通常フォームPOST。値はJSが下のhiddenに入れる -->
+        <form method="post" action="insert.php">
             <input type="hidden" name="frequency" id="f_frequency">
             <input type="hidden" name="purpose"   id="f_purpose">
             <input type="hidden" name="complaint" id="f_complaint">
@@ -65,7 +65,7 @@
     <p><a href="read.php">回答一覧を見る（read.php）</a></p>
 
     <script>
-        // 固定の3問。keyは chat.php / write.php が受け取る name と揃える。
+        // 固定の3問。keyは chat.php / insert.php が受け取る name と揃える。
         const QUESTIONS = [
             { key: "frequency", text: "鵠沼海岸にどのくらいの頻度で来ますか？" },
             { key: "purpose",   text: "主にどんな目的で来ますか？" },

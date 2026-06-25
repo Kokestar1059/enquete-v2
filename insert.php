@@ -1,22 +1,25 @@
 <?php
 
 /**
- * write.php
- * フォームから送られた回答を受け取り、data/data.csv に1行追記する。
+ * insert.php
+ * フォームから送られた回答を受け取り、responses テーブルに1行 INSERT する。
  *
- * CSVの列順（read.php と必ず揃える）:
- *   回答日時, 頻度, 目的, 不満内容, 分類カテゴリ
+ * 旧 write.php（CSV追記）からの変更点:
+ *   - fopen/fwrite/fclose（CSV追記）→ PDO の prepare/execute（DBへINSERT）
+ *   - clean_for_csv（カンマ・改行の置換）は廃止
+ *       … DBは列が分かれているので、カンマや改行が混ざっても列ずれしない。
  *
  * 学習メモ:
- *   $_POST["name"]      … fetch で送られてきた値の受け取り（≒ supabase でいう request body）
- *   fopen(..., "a")     … 追記モードで開く（"w" だと毎回上書きされて消えるので注意）
- *   fwrite($f, ...)     … 1行書き込み（≒ insert）
- *   fclose($f)          … 閉じる
+ *   $_POST["name"]        … fetch で送られてきた値の受け取り（≒ supabase の request body）
+ *   $pdo->prepare(SQL)    … SQLの「ひな形」を用意（値は ? のままにしておく）
+ *   $stmt->execute([...]) … ? に値を当てはめて実行（≒ insert）。
+ *                           値を直接SQLに連結しないので SQLインジェクション対策になる。
  */
 
 require_once "functions.php";
+require_once "db.php";
 
-// POST 以外（ブラウザで write.php を直接開いた等）のときは保存処理ができない。
+// POST 以外（ブラウザで insert.php を直接開いた等）のときは保存処理ができない。
 // 入力フォームは index.php に一本化しているので、そちらへリダイレクトする。
 //   header("Location: ...") … ブラウザに「このURLへ移動して」と指示する（≒ 画面遷移）
 //   ※ header() より前に画面出力（echo やHTML）があると効かないので注意。
@@ -34,31 +37,21 @@ $purpose   = $_POST["purpose"]   ?? "";
 $complaint = $_POST["complaint"] ?? "";
 $category  = $_POST["category"]  ?? "未分類";
 
-// 2) カンマ・改行対策（今回は fwrite + "," 連結方式なので、混ざると列がずれる）
-//    半角カンマ → 全角「，」、改行 → スペース に置換して列ずれ・行ずれを防ぐ。
-function clean_for_csv($s)
-{
-    $s = str_replace(",", "，", $s);              // 半角カンマを全角に
-    $s = str_replace(["\r\n", "\r", "\n"], " ", $s); // 改行をスペースに
-    return $s;
-}
+// 2) DBへ INSERT する。
+//    created_at は書かない … responses テーブルの DEFAULT CURRENT_TIMESTAMP に任せる
+//    （日時の管理元をDB1か所にして二重管理を避ける）。
+$pdo = db();
+$sql = "INSERT INTO responses (frequency, purpose, complaint, category)
+        VALUES (?, ?, ?, ?)";
+$stmt = $pdo->prepare($sql);
+$stmt->execute([$frequency, $purpose, $complaint, $category]);
 
-$frequency = clean_for_csv($frequency);
-$purpose   = clean_for_csv($purpose);
-$complaint = clean_for_csv($complaint);
-$category  = clean_for_csv($category);
-
-// 3) 回答日時を付与（分類カテゴリは上で受け取り済み）
+// 3) 完了画面に出す「回答日時」は、表示用に PHP の現在時刻を使う。
+//    （DBの created_at の実値とはほぼ同時刻。厳密に一致させたい場合は
+//      lastInsertId() で当該行を SELECT し直すが、ここでは表示用で十分。）
 $datetime = date("Y-m-d H:i:s");
 
-// 4) CSV に1行追記する
-$line = $datetime . "," . $frequency . "," . $purpose . "," . $complaint . "," . $category . "\n";
-
-$f = fopen("data/data.csv", "a"); // "a" = 追記。前のデータは消えない
-fwrite($f, $line);
-fclose($f);
-
-// 5) 保存完了メッセージ（表示は必ず h() を通す）
+// 4) 保存完了メッセージ（表示は必ず h() を通す＝XSS対策）
 ?>
 <!DOCTYPE html>
 <html lang="ja">
@@ -75,7 +68,7 @@ fclose($f);
         <li>不満内容：<?php echo h($complaint); ?></li>
         <li>分類カテゴリ：<?php echo h($category); ?></li>
     </ul>
-    <p><a href="read.php">一覧を見る（read.php / #3で作成予定）</a></p>
-    <p><a href="write.php">もう一度入力する</a></p>
+    <p><a href="select.php">一覧を見る（select.php / #3で作成予定）</a></p>
+    <p><a href="index.php">もう一度入力する</a></p>
 </body>
 </html>
