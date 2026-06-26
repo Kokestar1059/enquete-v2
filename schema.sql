@@ -7,16 +7,36 @@
 -- ローカル(XAMPP/MariaDB)・本番(さくらMySQL)どちらでも同じSQLで作れる。
 
 -- =====================================================================
+-- categories : カテゴリのマスタテーブル（#7で追加）
+--   カテゴリ名を1か所に集約し、responses からは id で参照する（正規化）。
+--   name は UNIQUE … 同じカテゴリ名が二重登録されるのを防ぐ。
+--   ※ responses が外部キーで参照するので、responses より先に作る。
+-- =====================================================================
+CREATE TABLE categories (
+  id   INT         NOT NULL AUTO_INCREMENT,               -- 連番ID（主キー）
+  name VARCHAR(50) NOT NULL,                              -- カテゴリ名（表示名）
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_categories_name (name)                    -- 名前の重複禁止
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 初期カテゴリ（5カテゴリ＋未分類）を投入する。
+INSERT INTO categories (name) VALUES
+  ('インフラ'), ('自然環境'), ('安全'), ('飲食・施設'), ('その他'), ('未分類');
+
+-- =====================================================================
 -- responses : アンケートの回答を1件＝1行で保存するテーブル
 -- =====================================================================
 CREATE TABLE responses (
-  id         INT          NOT NULL AUTO_INCREMENT,        -- 連番ID（主キー）
-  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 回答日時（省略時は現在時刻）
-  frequency  VARCHAR(255) NOT NULL DEFAULT '',            -- Q1: 来る頻度
-  purpose    TEXT,                                        -- Q2: 来る目的（自由記述）
-  complaint  TEXT,                                        -- Q3: 不満・改善要望（自由記述）
-  category   VARCHAR(50)  NOT NULL DEFAULT '未分類',       -- AI分類（5カテゴリ or 未分類）
-  PRIMARY KEY (id)
+  id          INT          NOT NULL AUTO_INCREMENT,        -- 連番ID（主キー）
+  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 回答日時（省略時は現在時刻）
+  frequency   VARCHAR(255) NOT NULL DEFAULT '',            -- Q1: 来る頻度
+  purpose     TEXT,                                        -- Q2: 来る目的（自由記述）
+  complaint   TEXT,                                        -- Q3: 不満・改善要望（自由記述）
+  category    VARCHAR(50)  NOT NULL DEFAULT '未分類',       -- AI分類の文字列（#7後はcategory_idが正。当面は併存）
+  category_id INT          NOT NULL,                        -- カテゴリ（categories.id を参照）#7で追加
+  PRIMARY KEY (id),
+  CONSTRAINT fk_responses_category                          -- 存在しないカテゴリを弾く外部キー制約
+    FOREIGN KEY (category_id) REFERENCES categories(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =====================================================================
@@ -31,3 +51,22 @@ CREATE TABLE analysis (
   content    TEXT     NOT NULL,                           -- 分析文（AIが生成した本文）
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =====================================================================
+-- 【参考】#7 移行手順（既に responses があるDBを、上の新構造へ移すSQL）
+--   ↑のCREATE文は「まっさらから作り直す用」。すでにデータが入っているDBは
+--   テーブルを作り直さず、下を順に流して既存データを保ったまま移行する。
+-- =====================================================================
+-- -- 1) categories を作って6カテゴリを投入（上の categories の CREATE/INSERT と同じ）
+-- -- 2) responses に category_id を追加（まずNULL可で足す）
+-- ALTER TABLE responses ADD COLUMN category_id INT NULL AFTER category;
+-- -- 3) 文字列 category に対応する categories.id を埋める
+-- UPDATE responses r JOIN categories c ON c.name = r.category SET r.category_id = c.id;
+-- -- 4) 一致しなかった行は「未分類」に寄せる（安全策）
+-- UPDATE responses SET category_id = (SELECT id FROM categories WHERE name='未分類')
+--   WHERE category_id IS NULL;
+-- -- 5) NOT NULL 化
+-- ALTER TABLE responses MODIFY COLUMN category_id INT NOT NULL;
+-- -- 6) 外部キー制約を追加（存在しないカテゴリを弾く）
+-- ALTER TABLE responses ADD CONSTRAINT fk_responses_category
+--   FOREIGN KEY (category_id) REFERENCES categories(id);

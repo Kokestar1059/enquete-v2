@@ -33,24 +33,30 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     respond_error("POSTで呼んでください。", 405);
 }
 
-// 1) responses テーブルを SELECT し、カテゴリ件数と不満内容を集める
+// 1) responses テーブルから、カテゴリ件数と不満内容を集める
 //    値を埋め込まない固定SQLなので query() でOK（プリペアドは外部入力を渡すときに使う）。
-$counts     = []; // カテゴリ => 件数
+$counts     = []; // カテゴリ名 => 件数
 $complaints = []; // 不満内容の一覧
 $total      = 0;
 
-$pdo  = db();
-$rows = $pdo->query("SELECT complaint, category FROM responses")->fetchAll();
+$pdo = db();
 
-foreach ($rows as $row) {
-    $category  = $row["category"];
+// カテゴリ別件数は JOIN + GROUP BY でDBに集計させる（#7：正規化に合わせて変更）。
+$aggSql = "SELECT c.name AS name, COUNT(r.id) AS cnt
+           FROM responses r
+           JOIN categories c ON c.id = r.category_id
+           GROUP BY c.id, c.name";
+foreach ($pdo->query($aggSql) as $agg) {
+    $counts[$agg["name"]] = (int)$agg["cnt"];
+    $total += (int)$agg["cnt"];
+}
+
+// 不満内容（自由回答）は空でないものだけ集める。
+foreach ($pdo->query("SELECT complaint FROM responses") as $row) {
     $complaint = $row["complaint"] ?? "";
-
-    $counts[$category] = ($counts[$category] ?? 0) + 1;
     if ($complaint !== "") {
         $complaints[] = $complaint;
     }
-    $total++;
 }
 
 if ($total === 0) {
