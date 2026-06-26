@@ -33,13 +33,44 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     respond_error("POSTで呼んでください。", 405);
 }
 
+// 0) レート制限（#6）: Azureに通す前に連打・大量呼び出しを弾く門番。
+//    analyze.php はログイン不要の公開エンドポイントなので、外部から連打されると
+//    Azure使用量が爆発しうる。同IPの呼び出し回数を rate_limits テーブルで数えて制限する。
+$pdo = db();
+$ip  = $_SERVER["REMOTE_ADDR"] ?? "unknown"; // 呼び出し元IP（取れないときは "unknown"）
+
+// 古い記録（24時間より前）を掃除しておく（テーブルが無限に太らないように）。
+$pdo->prepare("DELETE FROM rate_limits WHERE created_at < (NOW() - INTERVAL 1 DAY)")->execute();
+
+// (a) 連打制限: 直近10秒に同IPの呼び出しがあれば 429 で弾く（10秒に1回まで）。
+$stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM rate_limits
+     WHERE ip = ? AND created_at > (NOW() - INTERVAL 10 SECOND)"
+);
+$stmt->execute([$ip]);
+if ((int)$stmt->fetchColumn() > 0) {
+    respond_error("短時間に何度も実行されました。10秒ほど待ってから再度お試しください。", 429);
+}
+
+// (b) 1日の上限: 直近24時間に同IPが100回以上なら 429 で弾く（1日100回まで）。
+$stmt = $pdo->prepare(
+    "SELECT COUNT(*) FROM rate_limits
+     WHERE ip = ? AND created_at > (NOW() - INTERVAL 1 DAY)"
+);
+$stmt->execute([$ip]);
+if ((int)$stmt->fetchColumn() >= 100) {
+    respond_error("本日の分析回数の上限に達しました。時間をおいて再度お試しください。", 429);
+}
+
+// 制限クリア。今回の呼び出しを記録してから処理を続ける。
+//   Azure呼び出しの「前」に記録する … 通信失敗時に連続リトライされても回数に数えて抑止するため。
+$pdo->prepare("INSERT INTO rate_limits (ip) VALUES (?)")->execute([$ip]);
+
 // 1) responses テーブルから、カテゴリ件数と不満内容を集める
 //    値を埋め込まない固定SQLなので query() でOK（プリペアドは外部入力を渡すときに使う）。
 $counts     = []; // カテゴリ名 => 件数
 $complaints = []; // 不満内容の一覧
 $total      = 0;
-
-$pdo = db();
 
 // カテゴリ別件数は JOIN + GROUP BY でDBに集計させる（#7：正規化に合わせて変更）。
 $aggSql = "SELECT c.name AS name, COUNT(r.id) AS cnt

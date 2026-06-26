@@ -53,6 +53,23 @@ CREATE TABLE analysis (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =====================================================================
+-- rate_limits : analyze.php の連打対策（レート制限）の記録テーブル（#6で追加）
+--   analyze.php を呼ぶたびに「ip + 時刻」を1行INSERTするログ方式。
+--   ・直近10秒に同IPの行があれば連打とみなす（10秒に1回まで）
+--   ・直近24時間に同IPが100件以上なら1日の上限（1日100回まで）
+--   どちらも「このテーブルを数えるだけ」で判定でき、実装がシンプル。
+--   ※ アンケートの中身(responses等)とは無関係な運用ログなので別テーブルにする。
+--     古い行は analyze.php 側で定期的に掃除する（DELETE）。
+-- =====================================================================
+CREATE TABLE rate_limits (
+  id         INT         NOT NULL AUTO_INCREMENT,         -- 連番ID（主キー）
+  ip         VARCHAR(45) NOT NULL,                        -- 呼び出し元IP（IPv6も入る長さ）
+  created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 呼び出し時刻（省略時は現在時刻）
+  PRIMARY KEY (id),
+  KEY idx_ip_created (ip, created_at)                     -- ip+時刻での絞り込みを速くする索引
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- =====================================================================
 -- 【参考】#7 移行手順（既に responses があるDBを、上の新構造へ移すSQL）
 --   ↑のCREATE文は「まっさらから作り直す用」。すでにデータが入っているDBは
 --   テーブルを作り直さず、下を順に流して既存データを保ったまま移行する。
