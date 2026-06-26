@@ -18,6 +18,7 @@
 
 require_once "config.php";
 require_once "db.php";
+require_once "rate_limit.php";
 
 header("Content-Type: application/json; charset=utf-8");
 
@@ -33,13 +34,17 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     respond_error("POSTで呼んでください。", 405);
 }
 
+// 0) レート制限（#6）: Azureに通す前に連打・大量呼び出しを弾く門番。
+//    analyze.php は重い処理（全回答を分析）なので厳しめ＝10秒に1回・1日100回まで。
+//    超過していれば rate_limit_guard() が 429 を返してここで終了する。
+$pdo = db();
+rate_limit_guard($pdo, "analyze", 10, 100);
+
 // 1) responses テーブルから、カテゴリ件数と不満内容を集める
 //    値を埋め込まない固定SQLなので query() でOK（プリペアドは外部入力を渡すときに使う）。
 $counts     = []; // カテゴリ名 => 件数
 $complaints = []; // 不満内容の一覧
 $total      = 0;
-
-$pdo = db();
 
 // カテゴリ別件数は JOIN + GROUP BY でDBに集計させる（#7：正規化に合わせて変更）。
 $aggSql = "SELECT c.name AS name, COUNT(r.id) AS cnt

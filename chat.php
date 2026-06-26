@@ -20,6 +20,8 @@
  */
 
 require_once "config.php";
+require_once "db.php";
+require_once "rate_limit.php";
 
 // このファイルの応答は「JSON」だとブラウザに伝える（charsetも明示）
 header("Content-Type: application/json; charset=utf-8");
@@ -42,6 +44,11 @@ function respond_error($message, $httpStatus = 400)
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     respond_error("POSTで呼んでください。", 405);
 }
+
+// 1.5) レート制限（#6）: Azureに通す前に連打・大量呼び出しを弾く門番。
+//      chat.php は分類1語(max_tokens 20)と軽いので analyze より緩め＝5秒に1回・1日200回まで。
+//      action="chat" で analyze とはカウンタを分けるので、互いに干渉しない。
+rate_limit_guard(db(), "chat", 5, 200);
 
 // 2) fetch が送ってきた JSON 本文を読み取る
 $raw = file_get_contents("php://input");
