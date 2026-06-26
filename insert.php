@@ -37,21 +37,40 @@ $purpose   = $_POST["purpose"]   ?? "";
 $complaint = $_POST["complaint"] ?? "";
 $category  = $_POST["category"]  ?? "未分類";
 
-// 2) DBへ INSERT する。
+$pdo = db();
+
+// 2) カテゴリ名（文字列）→ category_id（数値）に引き直す。#7
+//    AI分類(chat.php)は「名前」を返すので、ここで categories マスタを引いて
+//    対応する id を取得する。マスタに無い名前なら「未分類」のidに寄せる。
+//    （存在しないカテゴリは外部キー制約で弾かれるため、ここで必ず有効なidにする）
+$stmt = $pdo->prepare("SELECT id FROM categories WHERE name = ?");
+$stmt->execute([$category]);
+$categoryId = $stmt->fetchColumn();
+
+if ($categoryId === false) {
+    // 名前が一致しなかったとき … 「未分類」のidをフォールバックに使う
+    $stmt = $pdo->prepare("SELECT id FROM categories WHERE name = ?");
+    $stmt->execute(["未分類"]);
+    $categoryId = $stmt->fetchColumn();
+    $category   = "未分類"; // 表示用の文字列も実態に合わせておく
+}
+
+// 3) DBへ INSERT する。
 //    created_at は書かない … responses テーブルの DEFAULT CURRENT_TIMESTAMP に任せる
 //    （日時の管理元をDB1か所にして二重管理を避ける）。
-$pdo = db();
-$sql = "INSERT INTO responses (frequency, purpose, complaint, category)
-        VALUES (?, ?, ?, ?)";
+//    category（文字列）と category_id（数値）の両方を入れる
+//    … #7では category_id が正。文字列 category は当面の併存（後のissueで削除可）。
+$sql = "INSERT INTO responses (frequency, purpose, complaint, category, category_id)
+        VALUES (?, ?, ?, ?, ?)";
 $stmt = $pdo->prepare($sql);
-$stmt->execute([$frequency, $purpose, $complaint, $category]);
+$stmt->execute([$frequency, $purpose, $complaint, $category, $categoryId]);
 
-// 3) 完了画面に出す「回答日時」は、表示用に PHP の現在時刻を使う。
+// 4) 完了画面に出す「回答日時」は、表示用に PHP の現在時刻を使う。
 //    （DBの created_at の実値とはほぼ同時刻。厳密に一致させたい場合は
 //      lastInsertId() で当該行を SELECT し直すが、ここでは表示用で十分。）
 $datetime = date("Y-m-d H:i:s");
 
-// 4) 保存完了メッセージ（表示は必ず h() を通す＝XSS対策）
+// 5) 保存完了メッセージ（表示は必ず h() を通す＝XSS対策）
 ?>
 <!DOCTYPE html>
 <html lang="ja">

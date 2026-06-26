@@ -11,11 +11,16 @@
  *   - 列数チェック（壊れた行スキップ）は不要 … DBは列が分かれているので列ずれしない
  *   - カテゴリ集計は SELECT で取った全行を PHP 側で数える（旧ロジックを流用）
  *
+ * #7（カテゴリ正規化）での変更点:
+ *   - カテゴリは responses.category_id（数値）→ categories マスタへ JOIN して名前を取得
+ *   - 集計は PHP で数えるのをやめ、SQL の GROUP BY + COUNT に置き換え（DBに集計させる）
+ *
  * 学習メモ:
+ *   JOIN              … responses と categories を category_id = id で結合して名前を引く
+ *   GROUP BY + COUNT  … カテゴリごとに件数をDB側で集計（≒ supabaseの集計）
  *   $pdo->query(SQL)  … 値を埋め込まない固定SQLを実行（≒ supabase の select）
  *   $stmt->fetchAll() … 全行を配列で受け取る（1行 = ["category"=>..., ...] の連想配列）
  *   ORDER BY ... DESC … 新しい回答が上に来るよう created_at の降順で並べる
- *   連想配列で件数を数える … $counts[$cat]++ がカテゴリ別集計の定番
  *   h(...)            … 画面出力前にエスケープ（XSS対策）
  */
 
@@ -34,24 +39,33 @@ foreach ($CATEGORIES as $cat) {
     $counts[$cat] = 0;
 }
 
-// responses を新しい順に全件 SELECT する。
-//   値を埋め込まない固定SQLなので query() でOK（プリペアドが必要なのは外部入力を渡すとき）。
-$pdo  = db();
-$sql  = "SELECT created_at, frequency, purpose, complaint, category
-         FROM responses
-         ORDER BY created_at DESC";
-$rows = $pdo->query($sql)->fetchAll();
+$pdo = db();
 
-// 取得した全行を回して、カテゴリ別に件数を数える。
-//   5カテゴリのどれかなら加算、それ以外（古い「未分類」など）は「その他」に寄せる。
-foreach ($rows as $row) {
-    $category = $row["category"];
-    if (isset($counts[$category])) {
-        $counts[$category]++;
+// カテゴリ別の件数を SQL の GROUP BY で集計する。#7
+//   responses を categories に JOIN し、カテゴリ名ごとに件数(COUNT)を出す。
+//   集計をPHPで数えるのではなくDBに任せる（リレーショナルDBの基本）。
+$aggSql = "SELECT c.name AS name, COUNT(r.id) AS cnt
+           FROM responses r
+           JOIN categories c ON c.id = r.category_id
+           GROUP BY c.id, c.name";
+foreach ($pdo->query($aggSql) as $agg) {
+    $name = $agg["name"];
+    $n    = (int)$agg["cnt"];
+    // 5カテゴリのどれかなら加算、それ以外（「未分類」など）は「その他」に寄せる。
+    if (isset($counts[$name])) {
+        $counts[$name] += $n;
     } else {
-        $counts["その他"]++;
+        $counts["その他"] += $n;
     }
 }
+
+// 一覧表示用に responses を新しい順に全件 SELECT する。
+//   カテゴリ名は category_id から JOIN で引く（c.name を「category」という名前で受ける）。
+$listSql = "SELECT r.created_at, r.frequency, r.purpose, r.complaint, c.name AS category
+            FROM responses r
+            JOIN categories c ON c.id = r.category_id
+            ORDER BY r.created_at DESC";
+$rows = $pdo->query($listSql)->fetchAll();
 
 // 集計の合計と最大件数（棒の長さの基準に使う）
 $total    = count($rows);
