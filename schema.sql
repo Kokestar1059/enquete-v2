@@ -53,20 +53,23 @@ CREATE TABLE analysis (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =====================================================================
--- rate_limits : analyze.php の連打対策（レート制限）の記録テーブル（#6で追加）
---   analyze.php を呼ぶたびに「ip + 時刻」を1行INSERTするログ方式。
---   ・直近10秒に同IPの行があれば連打とみなす（10秒に1回まで）
---   ・直近24時間に同IPが100件以上なら1日の上限（1日100回まで）
+-- rate_limits : 公開エンドポイントの連打対策（レート制限）の記録テーブル（#6で追加）
+--   analyze.php / chat.php を呼ぶたびに「action + ip + 時刻」を1行INSERTするログ方式。
+--   ・直近N秒に同 action・同IP の行があれば連打とみなす
+--   ・直近24時間に同 action・同IP が上限回数以上なら1日の上限
+--   action（'analyze' / 'chat'）でカウンタを分けるので機能ごとに独立した制限になる。
+--   しきい値はコード側で指定（analyze=10秒に1回/1日100回, chat=5秒に1回/1日200回）。
 --   どちらも「このテーブルを数えるだけ」で判定でき、実装がシンプル。
 --   ※ アンケートの中身(responses等)とは無関係な運用ログなので別テーブルにする。
---     古い行は analyze.php 側で定期的に掃除する（DELETE）。
+--     古い行は rate_limit.php 側で定期的に掃除する（DELETE）。
 -- =====================================================================
 CREATE TABLE rate_limits (
   id         INT         NOT NULL AUTO_INCREMENT,         -- 連番ID（主キー）
+  action     VARCHAR(20) NOT NULL DEFAULT 'analyze',      -- どのエンドポイントか（'analyze' / 'chat'）
   ip         VARCHAR(45) NOT NULL,                        -- 呼び出し元IP（IPv6も入る長さ）
   created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP, -- 呼び出し時刻（省略時は現在時刻）
   PRIMARY KEY (id),
-  KEY idx_ip_created (ip, created_at)                     -- ip+時刻での絞り込みを速くする索引
+  KEY idx_action_ip_created (action, ip, created_at)      -- action+ip+時刻での絞り込みを速くする索引
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- =====================================================================
