@@ -117,10 +117,15 @@ $latestAnalysis = $pdo
         <!-- ▼ AIによる分析（DBに保存済みの最新分析を表示。API は呼ばない） -->
         <h2>AIによる分析</h2>
         <p class="muted">DBに保存された最新の分析を表示します。</p>
-        <button type="button" id="analyzeBtn">AIで分析する</button>
+        <!-- 分析が既にあれば「再分析する」、無ければ「AIで分析する」と出し分ける -->
+        <button type="button" id="analyzeBtn"><?php echo $latestAnalysis ? "再分析する" : "AIで分析する"; ?></button>
+
+        <!-- 最終分析日時。再分析後に JS で中身を書き換えるので、分析が無いときは隠しておく -->
+        <p class="muted" id="analyzedAt" style="<?php echo $latestAnalysis ? "" : "display: none;"; ?>">
+            最終分析日時: <span id="analyzedAtValue"><?php echo $latestAnalysis ? h($latestAnalysis["created_at"]) : ""; ?></span>
+        </p>
 
         <?php if ($latestAnalysis): ?>
-            <p class="muted">最終分析日時: <?php echo h($latestAnalysis["created_at"]); ?></p>
             <div id="analysis" style="display: block;"><?php echo h($latestAnalysis["content"]); ?></div>
         <?php else: ?>
             <p class="muted" id="noAnalysis">まだ分析がありません。「AIで分析する」を押すと分析を作成します。</p>
@@ -163,7 +168,7 @@ $latestAnalysis = $pdo
         if (btn) {
             btn.addEventListener("click", async () => {
                 btn.disabled = true;
-                const original = btn.textContent;
+                let original = btn.textContent;
                 btn.textContent = "分析中…";
 
                 // 「まだ分析がありません」の案内が出ていれば消す（分析を表示するので不要になる）
@@ -184,6 +189,19 @@ $latestAnalysis = $pdo
                     } else {
                         // textContent なので回答に記号等が混ざっても安全（XSS対策）
                         analysis.textContent = data.analysis;
+
+                        // 最終分析日時を更新（リロードせずに画面へ反映）
+                        const analyzedAt      = document.getElementById("analyzedAt");
+                        const analyzedAtValue = document.getElementById("analyzedAtValue");
+                        if (analyzedAtValue && data.created_at) {
+                            analyzedAtValue.textContent = data.created_at;
+                        }
+                        if (analyzedAt) {
+                            analyzedAt.style.display = "";
+                        }
+
+                        // 一度分析したら以降は「再分析」の意図に揃える
+                        original = "再分析する";
                     }
                 } catch (e) {
                     analysis.textContent = "通信に失敗しました。もう一度お試しください。";

@@ -135,4 +135,14 @@ if ($analysis === "") {
 $stmt = $pdo->prepare("INSERT INTO analysis (content) VALUES (?)");
 $stmt->execute([$analysis]);
 
-echo json_encode(["analysis" => $analysis], JSON_UNESCAPED_UNICODE);
+// 保存した行の created_at を読み戻す（DB側で自動セットされた値）。
+//   画面の「最終分析日時」を、リロードせずに更新するために返す。
+$insertedId = $pdo->lastInsertId();
+$stmt       = $pdo->prepare("SELECT created_at FROM analysis WHERE id = ?");
+$stmt->execute([$insertedId]);
+$createdAt  = $stmt->fetchColumn();
+
+echo json_encode(
+    ["analysis" => $analysis, "created_at" => $createdAt],
+    JSON_UNESCAPED_UNICODE
+);
