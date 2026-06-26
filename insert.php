@@ -87,7 +87,7 @@ $datetime = date("Y-m-d H:i:s");
         <li>不満内容：<?php echo h($complaint); ?></li>
         <li>分類カテゴリ：<?php echo h($category); ?></li>
     </ul>
-    <p><a href="select.php">一覧を見る（select.php / #3で作成予定）</a></p>
+    <p><a href="select.php">一覧を見る</a></p>
     <p><a href="index.php">もう一度入力する</a></p>
 </body>
 </html>
